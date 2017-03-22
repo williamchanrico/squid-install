@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+
+# Title: squid-install
+# Description: Install and config squid to allow ALL connections
+# Author: William Chanrico
+# Date: 23-Dec-2016
+
+echo " _____________________ 	"
+echo "/ hello, who's there? \\	"
+echo "\\ william said hi...  /	"
+echo " ---------------------	"
+echo "       \\   ,__,			"
+echo "        \\  (..)____		"
+echo "           (__)    )\		"
+echo "              ||--|| *	"
+echo "Install and config squid package on debian or centos system"
+
+if [[ "$EUID" -ne 0 ]]; then
+    echo "Sorry, you need to run this as root"
+    exit 1
+fi
+
+if [[ -e /etc/debian_version || $(which apt 2>/dev/null) ]]; then
+    echo "You're on debian based system"
+	OS=debian
+elif [[ -e /etc/centos-release || -e /etc/redhat-release || $(which yum 2>/dev/null) ]]; then
+    echo "You're on centOS based system"
+	OS=centos
+else
+	echo "Looks like you aren't running this installer on a Debian, Ubuntu or CentOS system"
+	exit 2
+fi
+
+echo -e '\nInstalling package'
+
+if [[ $(which squid 2>/dev/null) ]]; then
+	echo 'Package already installed in this system'
+	exit 3
+fi
+
+if [[ $OS = 'debian' ]]; then
+	apt update >/dev/null 2>&1
+	apt install -y squid >/dev/null 2>&1
+else
+	yum update >/dev/null 2>&1
+	yum install -y squid >/dev/null 2>&1
+fi
+
+if [[ $(which squid 2>/dev/null) ]]; then
+	echo 'Package has been installed successfully'
+else
+	echo 'There was an error while installing the package'
+	exit 4
+fi
+
+echo "Creating a backup config files '/etc/squid/squid.conf.bak'"
+
+cp /etc/squid/squid.conf /etc/squid/squid.conf.bak
+
+echo 'Configuring to allow access from all connections'
+
+sed -e '/http_access deny all/s/^/#/g' -i /etc/squid/squid.conf
+echo 'http_access allow all' | sudo tee -a /etc/squid/squid.conf > /dev/null
+echo "
+via off
+forwarded_for off
+request_header_access Allow allow all
+request_header_access Authorization allow all
+request_header_access WWW-Authenticate allow all
+request_header_access Proxy-Authorization allow all
+request_header_access Proxy-Authenticate allow all
+request_header_access Cache-Control allow all
+request_header_access Content-Encoding allow all
+request_header_access Content-Length allow all
+request_header_access Content-Type allow all
+request_header_access Date allow all
+request_header_access Expires allow all
+request_header_access Host allow all
+request_header_access If-Modified-Since allow all
+request_header_access Last-Modified allow all
+request_header_access Location allow all
+request_header_access Pragma allow all
+request_header_access Accept allow all
+request_header_access Accept-Charset allow all
+request_header_access Accept-Encoding allow all
+request_header_access Accept-Language allow all
+request_header_access Content-Language allow all
+request_header_access Mime-Version allow all
+request_header_access Retry-After allow all
+request_header_access Title allow all
+request_header_access Connection allow all
+request_header_access Proxy-Connection allow all
+request_header_access User-Agent allow all
+request_header_access Cookie allow all
+request_header_access All deny all" >>/etc/squid/squid.conf
+
+echo 'Restarting squid service...'
+
+service squid restart >/dev/null 2>&1
+
+echo -e 'Done\n'
